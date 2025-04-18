@@ -3,20 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <title>LiDAR Maze</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { margin: 0; background: #222; overflow: hidden; position: relative; font-family: sans-serif; }
     canvas {
       background: #444;
-      width: 90vw;
-      max-width: 500px;
       display: block;
       margin: 20px auto 0;
     }
     #postStats {
       position: absolute;
-      top: calc(10px + 100px + 10px);
-      right: 10px;
-      width: 120px;
       background: rgba(0,0,0,0.8);
       color: #fff;
       padding: 10px;
@@ -27,7 +23,6 @@
     }
     #postStats button { margin-top: 5px; padding: 5px; width: 100%; }
     #touchControls {
-      position: relative;
       display: flex;
       justify-content: center;
       margin: 10px auto;
@@ -45,6 +40,16 @@
       border-radius: 8px;
     }
     .control-btn:active { opacity: 1; }
+    @media (max-width: 600px) {
+      canvas { width: 100vw; height: 100vw; }
+      #postStats {
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80vw;
+        max-width: 200px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -84,17 +89,18 @@
       img.src = `tree_topdown_imgs/${idx}.png`;
       treeImgs.push(img);
     }
-    const playerImg = new Image();
-    playerImg.src = 'lidar_shape.png';
+    const playerImg = new Image(); playerImg.src = 'lidar_shape.png';
 
     const moveSound = new Audio('music/video-game-bonus-wooden-chime.mp3');
-    const winSound = new Audio('music/ding-triangle-hit.mp3');
-    const startSound = new Audio('music/wind-chimes-daydream-transition-.mp3');
+    const winSound  = new Audio('music/ding-triangle-hit.mp3');
+    const startSound= new Audio('music/wind-chimes-daydream-transition-.mp3');
 
     function resizeCanvas() {
-      const size = Math.min(window.innerWidth * 0.9, 500);
-      canvas.width = size;
-      canvas.height = size;
+      const w = window.innerWidth;
+      let size;
+      if (w <= 600) size = w;
+      else size = Math.min(w * 0.9, 500);
+      canvas.width = size; canvas.height = size;
       tileSize = size / mazeSize;
     }
     window.addEventListener('resize', resizeCanvas);
@@ -108,8 +114,7 @@
         [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy]) => {
           const nx = x + dx, ny = y + dy;
           if (nx >= 0 && nx < mazeSize && ny >= 0 && ny < mazeSize && !visited[ny][nx] && grid[ny][nx] === 0) {
-            visited[ny][nx] = true;
-            queue.push({ x: nx, y: ny });
+            visited[ny][nx] = true; queue.push({ x: nx, y: ny });
           }
         });
       }
@@ -123,30 +128,22 @@
         maze = Array.from({ length: mazeSize }, () =>
           Array.from({ length: mazeSize }, () => (Math.random() < 0.25 ? 1 : 0))
         );
-        maze[1][1] = 0;
-        maze[mazeSize - 2][mazeSize - 2] = 0;
+        maze[1][1] = 0; maze[mazeSize - 2][mazeSize - 2] = 0;
       } while (!isSolvable(maze) && attempt < 1000);
-
       wallImgIndex = Array.from({ length: mazeSize }, () => Array(mazeSize).fill(0));
-      for (let y = 0; y < mazeSize; y++) {
-        for (let x = 0; x < mazeSize; x++) {
-          if (maze[y][x] === 1) wallImgIndex[y][x] = Math.floor(Math.random() * treeImgs.length);
-        }
+      for (let y = 0; y < mazeSize; y++) for (let x = 0; x < mazeSize; x++) {
+        if (maze[y][x] === 1) wallImgIndex[y][x] = Math.floor(Math.random() * treeImgs.length);
       }
     }
 
     function initGame() {
-      resizeCanvas();
-      player = { x: 1, y: 1 };
-      revealedTiles.clear(); totalRevealed = 0; steps = 0;
+      resizeCanvas(); player = { x: 1, y: 1 }; revealedTiles.clear(); totalRevealed = 0; steps = 0;
       gameWon = false; startTime = Date.now(); winTime = 0;
-      document.body.style.background = '#222';
-      document.getElementById('postStats').style.display = 'none';
-      generateMaze();
-      startSound.currentTime = 0; startSound.play().catch(() => {});
+      document.body.style.background = '#222'; document.getElementById('postStats').style.display = 'none';
+      generateMaze(); startSound.currentTime = 0; startSound.play().catch(() => {});
     }
-
     document.getElementById('restartBtn').onclick = initGame;
+
     function handleMove(dx, dy) {
       if (gameWon) return;
       const oldX = player.x, oldY = player.y;
@@ -164,7 +161,7 @@
     });
     const controls = { upBtn:[0,-1], leftBtn:[-1,0], downBtn:[0,1], rightBtn:[1,0] };
     Object.entries(controls).forEach(([id,[dx,dy]]) => {
-      document.getElementById(id).addEventListener('pointerdown', ()=>handleMove(dx,dy));
+      document.getElementById(id).addEventListener('pointerdown', () => handleMove(dx,dy));
     });
 
     function drawMiniMap() {
@@ -176,48 +173,47 @@
           ctx.fillRect(canvas.width - mapSize - 10 + x*tileMini, 10 + y*tileMini, tileMini, tileMini);
         }
       }
-      ctx.fillStyle='lime'; ctx.fillRect(canvas.width-mapSize-10+player.x*tileMini,10+player.y*tileMini,tileMini,tileMini);
+      ctx.fillStyle = 'lime'; ctx.fillRect(canvas.width - mapSize - 10 + player.x*tileMini, 10 + player.y*tileMini, tileMini, tileMini);
     }
 
     function draw() {
       ctx.clearRect(0,0,canvas.width,canvas.height);
       for (let y=0;y<mazeSize;y++) for (let x=0;x<mazeSize;x++) {
-        const dist = Math.hypot(player.x-x,player.y-y);
+        const dist = Math.hypot(player.x-x, player.y-y);
         const key = `${x},${y}`;
-        if (dist<=scanRadius) {
-          if (!revealedTiles.has(key)) {revealedTiles.add(key); totalRevealed++;}
+        if (dist <= scanRadius) {
+          if (!revealedTiles.has(key)) { revealedTiles.add(key); totalRevealed++; }
           if (maze[y][x]) {
             const img = treeImgs[wallImgIndex[y][x]];
             ctx.drawImage(img, x*tileSize, y*tileSize, tileSize, tileSize);
           } else {
-            ctx.fillStyle='#ccc'; ctx.fillRect(x*tileSize,y*tileSize,tileSize,tileSize);
+            ctx.fillStyle = '#ccc'; ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
           }
         } else {
-          ctx.fillStyle='#444'; ctx.fillRect(x*tileSize,y*tileSize,tileSize,tileSize);
+          ctx.fillStyle = '#444'; ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
         }
       }
-      if (gameWon) { ctx.fillStyle='rgba(255,255,0,0.5)'; ctx.fillRect(player.x*tileSize,player.y*tileSize,tileSize,tileSize);}      
-      ctx.drawImage(playerImg,player.x*tileSize,player.y*tileSize,tileSize,tileSize);
-      const elapsed = gameWon ? Math.floor((winTime-startTime)/1000) : Math.floor((Date.now()-startTime)/1000);
-      ctx.fillStyle='white'; ctx.font='16px sans-serif';
-      ctx.fillText(`Time: ${elapsed}s`,10,20);
-      ctx.fillText(`Explored: ${Math.floor((totalRevealed/totalTiles)*100)}%`,10,40);
+      if (gameWon) { ctx.fillStyle = 'rgba(255,255,0,0.5)'; ctx.fillRect(player.x*tileSize, player.y*tileSize, tileSize, tileSize); }
+      ctx.drawImage(playerImg, player.x*tileSize, player.y*tileSize, tileSize, tileSize);
+      const elapsed = gameWon ? Math.floor((winTime - startTime)/1000) : Math.floor((Date.now() - startTime)/1000);
+      ctx.fillStyle = 'white'; ctx.font = '16px sans-serif';
+      ctx.fillText(`Time: ${elapsed}s`, 10, 20);
+      ctx.fillText(`Explored: ${Math.floor((totalRevealed/totalTiles)*100)}%`, 10, 40);
       if (!gameWon && player.x===mazeSize-2 && player.y===mazeSize-2) {
-        gameWon=true; winTime=Date.now(); winSound.currentTime=0; winSound.play().catch(()=>{});
-        document.body.style.background='#ffeb3b'; setTimeout(()=>{
-          const eSec=Math.floor((winTime-startTime)/1000);
-          const best=parseInt(localStorage.getItem('bestTime'),10);
-          if(!best||eSec<best) localStorage.setItem('bestTime',eSec);
-          document.getElementById('statsText').innerHTML=
+        gameWon = true; winTime = Date.now(); winSound.currentTime = 0; winSound.play().catch(() => {});
+        document.body.style.background = '#ffeb3b'; setTimeout(() => {
+          const eSec = Math.floor((winTime - startTime)/1000);
+          const best = parseInt(localStorage.getItem('bestTime'), 10);
+          if (!best || eSec < best) localStorage.setItem('bestTime', eSec);
+          document.getElementById('statsText').innerHTML =
             `Time: ${eSec}s<br>Explored: ${Math.floor((totalRevealed/totalTiles)*100)}%<br>Steps: ${steps}<br>Best: ${localStorage.getItem('bestTime')}s`;
-          document.getElementById('postStats').style.display='block';
-        },100);
+          document.getElementById('postStats').style.display = 'block';
+        }, 100);
       }
       drawMiniMap();
     }
 
-    // Start
-    initGame(); (function loop(){draw(); requestAnimationFrame(loop);})();
+    initGame(); (function loop() { draw(); requestAnimationFrame(loop); })();
   </script>
 </body>
 </html>
