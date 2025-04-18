@@ -4,51 +4,47 @@
   <meta charset="UTF-8">
   <title>LiDAR Maze</title>
   <style>
-    body { margin: 0; background: #222; overflow: hidden; position: relative; }
+    body { margin: 0; background: #222; overflow: hidden; position: relative; font-family: sans-serif; }
     canvas {
       background: #444;
       width: 90vw;
-      height: 90vw;
       max-width: 500px;
-      max-height: 500px;
       display: block;
-      margin: 0 auto;
+      margin: 20px auto 0;
     }
     #postStats {
       position: absolute;
-      top: 150px;
-      left: calc(50% - 150px);
-      width: 300px;
+      top: calc(10px + 100px + 10px);
+      right: 10px;
+      width: 120px;
       background: rgba(0,0,0,0.8);
       color: #fff;
-      padding: 15px;
+      padding: 10px;
       display: none;
       text-align: center;
       z-index: 10;
+      border-radius: 5px;
     }
-    #postStats button {
-      margin-top: 10px;
-      padding: 5px 10px;
-    }
+    #postStats button { margin-top: 5px; padding: 5px; width: 100%; }
     #touchControls {
-      position: absolute;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
+      position: relative;
       display: flex;
-      width: 180px;
-      justify-content: space-between;
+      justify-content: center;
+      margin: 10px auto;
+      width: 260px;
       z-index: 10;
     }
     .control-btn {
-      width: 40px;
-      height: 40px;
-      font-size: 24px;
-      opacity: 0.7;
+      width: 60px;
+      height: 60px;
+      font-size: 32px;
+      margin: 0 10px;
+      opacity: 0.8;
       background: rgba(255,255,255,0.2);
       border: none;
-      border-radius: 5px;
+      border-radius: 8px;
     }
+    .control-btn:active { opacity: 1; }
   </style>
 </head>
 <body>
@@ -56,7 +52,7 @@
     <div id="statsText"></div>
     <button id="restartBtn">Play Again</button>
   </div>
-  <canvas id="gameCanvas" width="500" height="500"></canvas>
+  <canvas id="gameCanvas"></canvas>
   <div id="touchControls">
     <button id="upBtn" class="control-btn">▲</button>
     <button id="leftBtn" class="control-btn">◀</button>
@@ -66,9 +62,9 @@
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const tileSize = 50;
     const mazeSize = 10;
     const scanRadius = 2;
+    let tileSize;
 
     let maze = [];
     let wallImgIndex = [];
@@ -88,7 +84,6 @@
       img.src = `tree_topdown_imgs/${idx}.png`;
       treeImgs.push(img);
     }
-
     const playerImg = new Image();
     playerImg.src = 'lidar_shape.png';
 
@@ -96,10 +91,17 @@
     const winSound = new Audio('music/ding-triangle-hit.mp3');
     const startSound = new Audio('music/wind-chimes-daydream-transition-.mp3');
 
+    function resizeCanvas() {
+      const size = Math.min(window.innerWidth * 0.9, 500);
+      canvas.width = size;
+      canvas.height = size;
+      tileSize = size / mazeSize;
+    }
+    window.addEventListener('resize', resizeCanvas);
+
     function isSolvable(grid) {
       const visited = Array.from({ length: mazeSize }, () => Array(mazeSize).fill(false));
-      const queue = [{ x: 1, y: 1 }];
-      visited[1][1] = true;
+      const queue = [{ x: 1, y: 1 }]; visited[1][1] = true;
       while (queue.length) {
         const { x, y } = queue.shift();
         if (x === mazeSize - 2 && y === mazeSize - 2) return true;
@@ -125,153 +127,97 @@
         maze[mazeSize - 2][mazeSize - 2] = 0;
       } while (!isSolvable(maze) && attempt < 1000);
 
-      // assign random tree image indices
       wallImgIndex = Array.from({ length: mazeSize }, () => Array(mazeSize).fill(0));
       for (let y = 0; y < mazeSize; y++) {
         for (let x = 0; x < mazeSize; x++) {
-          if (maze[y][x] === 1) {
-            wallImgIndex[y][x] = Math.floor(Math.random() * treeImgs.length);
-          }
+          if (maze[y][x] === 1) wallImgIndex[y][x] = Math.floor(Math.random() * treeImgs.length);
         }
       }
     }
 
     function initGame() {
+      resizeCanvas();
       player = { x: 1, y: 1 };
-      revealedTiles.clear();
-      totalRevealed = 0;
-      steps = 0;
-      gameWon = false;
-      startTime = Date.now();
-      winTime = 0;
+      revealedTiles.clear(); totalRevealed = 0; steps = 0;
+      gameWon = false; startTime = Date.now(); winTime = 0;
       document.body.style.background = '#222';
       document.getElementById('postStats').style.display = 'none';
       generateMaze();
-      startSound.currentTime = 0;
-      startSound.play().catch(() => {});
+      startSound.currentTime = 0; startSound.play().catch(() => {});
     }
 
-    // Movement handler for keyboard and touch
+    document.getElementById('restartBtn').onclick = initGame;
     function handleMove(dx, dy) {
       if (gameWon) return;
       const oldX = player.x, oldY = player.y;
       const nx = oldX + dx, ny = oldY + dy;
       if (nx >= 0 && nx < mazeSize && ny >= 0 && ny < mazeSize && maze[ny][nx] === 0) {
-        player.x = nx;
-        player.y = ny;
-        steps++;
-        moveSound.currentTime = 0;
-        moveSound.play().catch(() => {});
+        player.x = nx; player.y = ny; steps++;
+        moveSound.currentTime = 0; moveSound.play().catch(() => {});
       }
     }
-
-    // Keyboard controls
     document.addEventListener('keydown', e => {
       if (e.key === 'ArrowUp') handleMove(0, -1);
       if (e.key === 'ArrowDown') handleMove(0, 1);
       if (e.key === 'ArrowLeft') handleMove(-1, 0);
       if (e.key === 'ArrowRight') handleMove(1, 0);
     });
-
-    // Touch controls
-    const controls = {
-      upBtn: [0, -1],
-      downBtn: [0, 1],
-      leftBtn: [-1, 0],
-      rightBtn: [1, 0]
-    };
-    Object.entries(controls).forEach(([btn, [dx, dy]]) => {
-      document.getElementById(btn).addEventListener('pointerdown', () => handleMove(dx, dy));
+    const controls = { upBtn:[0,-1], leftBtn:[-1,0], downBtn:[0,1], rightBtn:[1,0] };
+    Object.entries(controls).forEach(([id,[dx,dy]]) => {
+      document.getElementById(id).addEventListener('pointerdown', ()=>handleMove(dx,dy));
     });
 
-    document.getElementById('restartBtn').onclick = initGame;
-
     function drawMiniMap() {
-      const mapSize = 100;
-      const tileSizeMini = mapSize / mazeSize;
-      ctx.fillStyle = '#000';
-      ctx.fillRect(canvas.width - mapSize - 10, 10, mapSize, mapSize);
-      for (let y = 0; y < mazeSize; y++) {
-        for (let x = 0; x < mazeSize; x++) {
-          if (revealedTiles.has(`${x},${y}`)) {
-            ctx.fillStyle = maze[y][x] === 1 ? '#333' : '#eee';
-            ctx.fillRect(
-              canvas.width - mapSize - 10 + x * tileSizeMini,
-              10 + y * tileSizeMini,
-              tileSizeMini,
-              tileSizeMini
-            );
-          }
+      const mapSize = 100; const tileMini = mapSize / mazeSize;
+      ctx.fillStyle = '#000'; ctx.fillRect(canvas.width - mapSize - 10, 10, mapSize, mapSize);
+      for (let y = 0; y < mazeSize; y++) for (let x = 0; x < mazeSize; x++) {
+        if (revealedTiles.has(`${x},${y}`)) {
+          ctx.fillStyle = maze[y][x] ? '#333' : '#eee';
+          ctx.fillRect(canvas.width - mapSize - 10 + x*tileMini, 10 + y*tileMini, tileMini, tileMini);
         }
       }
-      ctx.fillStyle = 'lime';
-      ctx.fillRect(
-        canvas.width - mapSize - 10 + player.x * tileSizeMini,
-        10 + player.y * tileSizeMini,
-        tileSizeMini,
-        tileSizeMini
-      );
+      ctx.fillStyle='lime'; ctx.fillRect(canvas.width-mapSize-10+player.x*tileMini,10+player.y*tileMini,tileMini,tileMini);
     }
 
     function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (let y = 0; y < mazeSize; y++) {
-        for (let x = 0; x < mazeSize; x++) {
-          const dist = Math.hypot(player.x - x, player.y - y);
-          const key = `${x},${y}`;
-          if (dist <= scanRadius) {
-            if (!revealedTiles.has(key)) {
-              revealedTiles.add(key);
-              totalRevealed++;
-            }
-            if (maze[y][x] === 1) {
-              const img = treeImgs[wallImgIndex[y][x]];
-              ctx.drawImage(img, x * tileSize, y * tileSize, tileSize, tileSize);
-            } else {
-              ctx.fillStyle = '#ccc';
-              ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-            }
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      for (let y=0;y<mazeSize;y++) for (let x=0;x<mazeSize;x++) {
+        const dist = Math.hypot(player.x-x,player.y-y);
+        const key = `${x},${y}`;
+        if (dist<=scanRadius) {
+          if (!revealedTiles.has(key)) {revealedTiles.add(key); totalRevealed++;}
+          if (maze[y][x]) {
+            const img = treeImgs[wallImgIndex[y][x]];
+            ctx.drawImage(img, x*tileSize, y*tileSize, tileSize, tileSize);
           } else {
-            ctx.fillStyle = '#444';
-            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+            ctx.fillStyle='#ccc'; ctx.fillRect(x*tileSize,y*tileSize,tileSize,tileSize);
           }
+        } else {
+          ctx.fillStyle='#444'; ctx.fillRect(x*tileSize,y*tileSize,tileSize,tileSize);
         }
       }
-      if (gameWon) {
-        ctx.fillStyle = 'rgba(255,255,0,0.5)';
-        ctx.fillRect(player.x * tileSize, player.y * tileSize, tileSize, tileSize);
-      }
-      ctx.drawImage(playerImg, player.x * tileSize, player.y * tileSize, tileSize, tileSize);
-
-      const elapsed = gameWon
-        ? Math.floor((winTime - startTime) / 1000)
-        : Math.floor((Date.now() - startTime) / 1000);
-      ctx.fillStyle = 'white';
-      ctx.font = '16px sans-serif';
-      ctx.fillText(`Time: ${elapsed}s`, 10, 20);
-      ctx.fillText(`Explored: ${Math.floor((totalRevealed / totalTiles) * 100)}%`, 10, 40);
-
-      if (!gameWon && player.x === mazeSize - 2 && player.y === mazeSize - 2) {
-        gameWon = true;
-        winTime = Date.now();
-        winSound.currentTime = 0;
-        winSound.play().catch(() => {});
-        document.body.style.background = '#ffeb3b';
-        setTimeout(() => {
-          const elapsedSec = Math.floor((winTime - startTime) / 1000);
-          const best = parseInt(localStorage.getItem('bestTime'), 10);
-          if (!best || elapsedSec < best) localStorage.setItem('bestTime', elapsedSec);
-          document.getElementById('statsText').innerHTML =
-            `Time: ${elapsedSec}s<br>Explored: ${Math.floor((totalRevealed / totalTiles) * 100)}%<br>Steps: ${steps}<br>Best: ${localStorage.getItem('bestTime')}s`;
-          document.getElementById('postStats').style.display = 'block';
-        }, 100);
+      if (gameWon) { ctx.fillStyle='rgba(255,255,0,0.5)'; ctx.fillRect(player.x*tileSize,player.y*tileSize,tileSize,tileSize);}      
+      ctx.drawImage(playerImg,player.x*tileSize,player.y*tileSize,tileSize,tileSize);
+      const elapsed = gameWon ? Math.floor((winTime-startTime)/1000) : Math.floor((Date.now()-startTime)/1000);
+      ctx.fillStyle='white'; ctx.font='16px sans-serif';
+      ctx.fillText(`Time: ${elapsed}s`,10,20);
+      ctx.fillText(`Explored: ${Math.floor((totalRevealed/totalTiles)*100)}%`,10,40);
+      if (!gameWon && player.x===mazeSize-2 && player.y===mazeSize-2) {
+        gameWon=true; winTime=Date.now(); winSound.currentTime=0; winSound.play().catch(()=>{});
+        document.body.style.background='#ffeb3b'; setTimeout(()=>{
+          const eSec=Math.floor((winTime-startTime)/1000);
+          const best=parseInt(localStorage.getItem('bestTime'),10);
+          if(!best||eSec<best) localStorage.setItem('bestTime',eSec);
+          document.getElementById('statsText').innerHTML=
+            `Time: ${eSec}s<br>Explored: ${Math.floor((totalRevealed/totalTiles)*100)}%<br>Steps: ${steps}<br>Best: ${localStorage.getItem('bestTime')}s`;
+          document.getElementById('postStats').style.display='block';
+        },100);
       }
       drawMiniMap();
     }
 
-    // Kick off
-    initGame();
-    (function loop() { draw(); requestAnimationFrame(loop); })();
+    // Start
+    initGame(); (function loop(){draw(); requestAnimationFrame(loop);})();
   </script>
 </body>
 </html>
